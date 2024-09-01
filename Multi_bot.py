@@ -50,38 +50,40 @@ def google_search(query):
     except Exception as e:
         return f"An error occurred: {str(e)}"
 
-# Function to fetch weather data
 def get_weather(city):
+    st.write(f"Fetching weather for: {city}")  # Debug message
     try:
-        # Create the complete API URL
         complete_api_link = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={weather_api_key}"
         
-        # Request weather data
         api_link = requests.get(complete_api_link)
         api_data = api_link.json()
         
-        # Check if the API call was successful
+        
+
         if api_link.status_code == 200:
-            # Extract weather data
             temp_city = api_data['main']['temp'] - 273.15
             weather_desc = api_data['weather'][0]['description']
             humidity = api_data['main']['humidity']
             wind_speed = api_data['wind']['speed']
             date_time = datetime.now().strftime("%d %b %Y | %I:%M:%S %p")
             
-            # Format the weather response
             weather_response = f"Temperature: {temp_city:.2f}°C\n"
             weather_response += f"Weather Description: {weather_desc}\n"
             weather_response += f"Humidity: {humidity}%\n"
             weather_response += f"Wind Speed: {wind_speed} m/s\n"
             weather_response += f"Date & Time: {date_time}"
             
-            st.write("Weather_bot" , weather_response)
+            st.write("Weather_bot:", weather_response)
         else:
             st.write(f"Error: {api_data.get('message', 'Unable to fetch weather data.')}")
     
+    except requests.RequestException as e:
+        st.write(f"Request error: {e}")
+    except KeyError as e:
+        st.write(f"Key error: {e}")
     except Exception as e:
-        st.write(f"An error occurred: {e}")
+        st.write(f"An unexpected error occurred: {e}")
+
 
 
 # Function to generate response using Blenderbot model
@@ -114,10 +116,8 @@ elif option == "Weather Prediction":
     user_city = st.text_input("Enter city name:", "")
     
     if st.button("Get Weather") and user_city:
-        with st.spinner("Fetching weather data..."):
-            weather_response = get_weather(user_city)
-        #st.write("**WeatherBot:**", weather_response)
-
+        st.write("Fetching weather data...")
+        get_weather(user_city)
 elif option == "Chit-chat":
     st.write("Have a casual conversation with the chatbot!")
     user_input = st.text_input("Enter your message:", "")
