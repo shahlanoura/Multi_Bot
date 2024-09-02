@@ -4,6 +4,9 @@ from transformers import BlenderbotForConditionalGeneration, BlenderbotTokenizer
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+from transformers import AutoTokenizer
+
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -88,11 +91,10 @@ def get_weather(city):
 
 # Function to generate response using Blenderbot model
 def generate_chat_response(user_input):
-    inputs = tokenizer.encode(user_input, return_tensors="pt")
+    inputs = tokenizer.encode(user_input, return_tensors="pt", clean_up_tokenization_spaces=True)
     reply_ids = model.generate(inputs)
     bot_reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
     st.write("Bot_reply:", bot_reply)
-# Streamlit app interface
 st.title("Multi-functional Chatbot")
 
 # Create a sidebar for navigation
