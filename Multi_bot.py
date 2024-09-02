@@ -5,7 +5,8 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import warnings
-
+st.title("Test Streamlit App")
+st.write("If you see this, Streamlit is working!")
 # Suppress specific warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.tokenization_utils_base")
 
