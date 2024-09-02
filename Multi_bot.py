@@ -4,9 +4,10 @@ from transformers import BlenderbotForConditionalGeneration, BlenderbotTokenizer
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from transformers import AutoTokenizer
+import warnings
 
-
+# Suppress specific warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.tokenization_utils_base")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,7 +18,7 @@ model = BlenderbotForConditionalGeneration.from_pretrained(model_name)
 tokenizer = BlenderbotTokenizer.from_pretrained(model_name)
 
 # Get the API key for weather API from environment variables
-weather_api_key = os.environ.get("API_KEY", "f07bdb36a61cde1e50acde6a8ab51d77") 
+weather_api_key = os.getenv("API_KEY", "f07bdb36a61cde1e50acde6a8ab51d77") 
 
 # Set up Google Custom Search API settings
 GOOGLE_API_KEY = "AIzaSyBcvvpvj1EPtxwhYTaZCctLC76O5_nlqBA"
@@ -26,43 +27,31 @@ GOOGLE_CSE_ID = "62678cb02935948d8"
 # Function to fetch Google search results
 def google_search(query):
     try:
-        # Construct the URL for Google Custom Search API
         url = f"https://www.googleapis.com/customsearch/v1?q={query}&key={GOOGLE_API_KEY}&cx={GOOGLE_CSE_ID}"
         response = requests.get(url)
         
-        # Check if the request was successful
         if response.status_code != 200:
             return f"Error: Unable to fetch results (Status code: {response.status_code})"
         
         results = response.json()
 
-        # Handle potential errors from the API response
         if 'error' in results:
             return f"Google API Error: {results['error'].get('message', 'Unknown error')}"
 
-        # Return only the snippets from the search results
-        snippets = []
-        if 'items' in results and len(results['items']) > 0:
-            for item in results['items']:
-                snippet = item.get('snippet', 'No snippet available')
-                snippets.append(snippet)
-            return "\n\n".join(snippets)
-        else:
-            return "No relevant information found on Google."
+        snippets = [item.get('snippet', 'No snippet available') for item in results.get('items', [])]
+        return "\n\n".join(snippets) if snippets else "No relevant information found on Google."
 
     except Exception as e:
         return f"An error occurred: {str(e)}"
 
 def get_weather(city):
-    st.write(f"Fetching weather for: {city}")  # Debug message
+    st.write(f"Fetching weather for: {city}")  
     try:
         complete_api_link = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={weather_api_key}"
         
         api_link = requests.get(complete_api_link)
         api_data = api_link.json()
         
-        
-
         if api_link.status_code == 200:
             temp_city = api_data['main']['temp'] - 273.15
             weather_desc = api_data['weather'][0]['description']
@@ -87,14 +76,14 @@ def get_weather(city):
     except Exception as e:
         st.write(f"An unexpected error occurred: {e}")
 
-
-
 # Function to generate response using Blenderbot model
 def generate_chat_response(user_input):
     inputs = tokenizer.encode(user_input, return_tensors="pt", clean_up_tokenization_spaces=True)
     reply_ids = model.generate(inputs)
     bot_reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
     st.write("Bot_reply:", bot_reply)
+
+# Streamlit app interface
 st.title("Multi-functional Chatbot")
 
 # Create a sidebar for navigation
@@ -120,11 +109,11 @@ elif option == "Weather Prediction":
     if st.button("Get Weather") and user_city:
         st.write("Fetching weather data...")
         get_weather(user_city)
+        
 elif option == "Chit-chat":
     st.write("Have a casual conversation with the chatbot!")
     user_input = st.text_input("Enter your message:", "")
     
     if user_input:
         with st.spinner("Generating response..."):
-            chat_response = generate_chat_response(user_input)
-        #st.write("**Blenderbot:**", chat_response)
+            generate_chat_response(user_input)
