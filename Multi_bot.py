@@ -12,6 +12,11 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.t
 load_dotenv()
 
 # Load the fine-tuned model and tokenizer for Blenderbot
+@st.cache_resource
+def load_model():
+    # Load your model here
+    return BlenderbotForConditionalGeneration.from_pretrained("facebook/blenderbot-400M-distill")
+
 model_name = "facebook/blenderbot-400M-distill"
 model = BlenderbotForConditionalGeneration.from_pretrained(model_name)
 tokenizer = BlenderbotTokenizer.from_pretrained(model_name)
