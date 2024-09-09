@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 import warnings
 
-warnings.filterwarnings("ignore", category="FutureWarning", module="transformers.tokenization_utils_base")
+# Correct the category type to a class instead of a string
+warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.tokenization_utils_base")
 
 # Load environment variables from .env file
 load_dotenv()
