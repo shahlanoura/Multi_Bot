@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import warnings
 
-warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.tokenization_utils_base")
+warnings.filterwarnings("ignore", category="FutureWarning", module="transformers.tokenization_utils_base")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,6 +25,10 @@ model, tokenizer = load_model()
 weather_api_key = os.getenv("WEATHER_API_KEY", "f07bdb36a61cde1e50acde6a8ab51d77")
 google_api_key = os.getenv("GOOGLE_API_KEY", "AIzaSyBcvvpvj1EPtxwhYTaZCctLC76O5_nlqBA")
 google_cse_id = os.getenv("GOOGLE_CSE_ID", "62678cb02935948d8")
+
+# Initialize chat history
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
 
 # Function to fetch Google search results
 def google_search(query):
@@ -55,6 +59,7 @@ def get_weather(city):
             wind_speed = api_data['wind']['speed']
             date_time = datetime.now().strftime("%d %b %Y | %I:%M:%S %p")
             weather_response = f"Temperature: {temp_city:.2f}°C\nWeather Description: {weather_desc}\nHumidity: {humidity}%\nWind Speed: {wind_speed} m/s\nDate & Time: {date_time}"
+            st.session_state.chat_history.append({"user": city, "bot": weather_response})
             st.write("Weather_bot:", weather_response)
         else:
             st.write(f"Error: {api_data.get('message', 'Unable to fetch weather data.')}")
@@ -70,6 +75,7 @@ def generate_chat_response(user_input):
     inputs = tokenizer.encode(user_input, return_tensors="pt", clean_up_tokenization_spaces=True)
     reply_ids = model.generate(inputs)
     bot_reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
+    st.session_state.chat_history.append({"user": user_input, "bot": bot_reply})
     st.write("Bot_reply:", bot_reply)
 
 # Streamlit app interface
@@ -88,6 +94,7 @@ if option == "Student Q&A":
     if user_question:
         with st.spinner("Finding the best answer..."):
             answer = google_search(user_question)
+        st.session_state.chat_history.append({"user": user_question, "bot": answer})
         st.write("**Answer:**", answer)
 
 elif option == "Weather Prediction":
@@ -103,3 +110,9 @@ elif option == "Chit-chat":
     if user_input:
         with st.spinner("Generating response..."):
             generate_chat_response(user_input)
+
+# Display chat history
+st.write("### Chat History")
+for message in st.session_state.chat_history:
+    st.write(f"**You:** {message['user']}")
+    st.write(f"**Bot:** {message['bot']}")
