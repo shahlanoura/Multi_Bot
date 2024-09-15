@@ -56,5 +56,6 @@ python-dotenv
 torch 
 torchvision 
 torchaudio
+google-generativeai
 
 
