@@ -57,5 +57,7 @@ torch
 torchvision 
 torchaudio
 google-generativeai
+torch 
+torchvision
 
 

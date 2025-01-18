@@ -34,7 +34,7 @@ genai.configure(api_key=GOOGLE_API_KEY)
 # Intent categories
 intents = ["weather_query", "study_question", "chit_chat"]
 
-# Chat history
+# Chat history (stored in session state)
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
@@ -71,7 +71,7 @@ def get_weather(city):
             weather_info = f"Temperature: {temp:.2f}°C\nWeather: {description}\nHumidity: {humidity}%\nWind Speed: {wind_speed} m/s"
             return weather_info
         else:
-            return f"Error: {data.get('message', 'Unable to fetch weather data.')}"
+            return f"Error: {data.get('message', 'Unable to fetch weather data.')}."
     except Exception as e:
         return f"An error occurred: {str(e)}"
 
