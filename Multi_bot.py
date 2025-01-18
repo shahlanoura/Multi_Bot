@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from transformers import pipeline
 from transformers import BlenderbotForConditionalGeneration, BlenderbotTokenizer
 import os
 from dotenv import load_dotenv
@@ -7,140 +8,117 @@ from datetime import datetime
 import warnings
 import google.generativeai as genai
 
-# Correct the category type to a class instead of a string
+# Suppress future warnings
 warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.tokenization_utils_base")
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Cache the model loading function to optimize performance
+# Cache the chatbot models to optimize performance
 @st.cache_resource
-def load_model():
+def load_models():
+    intent_classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", revision="c626438")
+
     model_name = "facebook/blenderbot-400M-distill"
-    model = BlenderbotForConditionalGeneration.from_pretrained(model_name)
-    tokenizer = BlenderbotTokenizer.from_pretrained(model_name)
-    return model, tokenizer
+    chatbot_model = BlenderbotForConditionalGeneration.from_pretrained(model_name)
+    chatbot_tokenizer = BlenderbotTokenizer.from_pretrained(model_name)
+    return intent_classifier, chatbot_model, chatbot_tokenizer
 
-model, tokenizer = load_model()
+intent_classifier, chatbot_model, chatbot_tokenizer = load_models()
 
-# Get the API keys from environment variables
+# API keys
 weather_api_key = os.getenv("WEATHER_API_KEY", "f07bdb36a61cde1e50acde6a8ab51d77")
-#google_api_key = os.getenv("GOOGLE_API_KEY", "AIzaSyBcvvpvj1EPtxwhYTaZCctLC76O5_nlqBA")
-#google_cse_id = os.getenv("GOOGLE_CSE_ID", "62678cb02935948d8")
-GOOGLE_API_KEY = "AIzaSyAPr3DkkQRsjdiCrNhEmptYQ8Fncf_Cs2s"
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "AIzaSyAPr3DkkQRsjdiCrNhEmptYQ8Fncf_Cs2s")
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# Initialize chat history
+# Intent categories
+intents = ["weather_query", "study_question", "chit_chat"]
+
+# Chat history
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
 # Function to fetch Google search results
 def google_search(query):
     try:
-        # Fetch the list of models and select the one that supports text generation
         model_name = None
         for model in genai.list_models():
             if 'generateContent' in model.supported_generation_methods:
                 model_name = model.name
                 break
         
-        if model_name is None:
+        if not model_name:
             return "No suitable Generative AI model found for content generation."
-
-        # Initialize the chat with the selected model
+        
         model = genai.GenerativeModel(model_name)
         chat = model.start_chat(history=[])
-
-        # Send the query to Generative AI and get the response
         response = chat.send_message(query, stream=True)
-
-        # Collect the response text
-        response_text = "".join(chunk.text for chunk in response if chunk.text)
-
-        # Return the full response as a two-paragraph result (assuming the AI generates enough content)
-        return response_text
-
+        return "".join(chunk.text for chunk in response if chunk.text)
     except Exception as e:
         return f"An error occurred: {str(e)}"
 
 # Function to get weather information
 def get_weather(city):
-    st.write(f"Fetching weather for: {city}")  
     try:
-        complete_api_link = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={weather_api_key}"
-        api_link = requests.get(complete_api_link)
-        api_data = api_link.json()
-        if api_link.status_code == 200:
-            temp_city = api_data['main']['temp'] - 273.15
-            weather_desc = api_data['weather'][0]['description']
-            humidity = api_data['main']['humidity']
-            wind_speed = api_data['wind']['speed']
-            date_time = datetime.now().strftime("%d %b %Y | %I:%M:%S %p")
-            weather_response = f"Temperature: {temp_city:.2f}°C\nWeather Description: {weather_desc}\nHumidity: {humidity}%\nWind Speed: {wind_speed} m/s\nDate & Time: {date_time}"
-            st.session_state.chat_history.append({"user": city, "bot": weather_response})
-            st.write("Weather_bot:", weather_response)
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={weather_api_key}"
+        response = requests.get(url)
+        data = response.json()
+        if response.status_code == 200:
+            temp = data['main']['temp'] - 273.15
+            description = data['weather'][0]['description']
+            humidity = data['main']['humidity']
+            wind_speed = data['wind']['speed']
+            weather_info = f"Temperature: {temp:.2f}°C\nWeather: {description}\nHumidity: {humidity}%\nWind Speed: {wind_speed} m/s"
+            return weather_info
         else:
-            st.write(f"Error: {api_data.get('message', 'Unable to fetch weather data.')}")
-    except requests.RequestException as e:
-        st.write(f"Request error: {e}")
-    except KeyError as e:
-        st.write(f"Key error: {e}")
+            return f"Error: {data.get('message', 'Unable to fetch weather data.')}"
     except Exception as e:
-        st.write(f"An unexpected error occurred: {e}")
+        return f"An error occurred: {str(e)}"
 
 # Function to generate chat response using Blenderbot model
 def generate_chat_response(user_input):
-    inputs = tokenizer.encode(user_input, return_tensors="pt", clean_up_tokenization_spaces=True)
-    reply_ids = model.generate(inputs)
-    bot_reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
-    st.session_state.chat_history.append({"user": user_input, "bot": bot_reply})
-    st.write("Bot_reply:", bot_reply)
+    inputs = chatbot_tokenizer.encode(user_input, return_tensors="pt")
+    reply_ids = chatbot_model.generate(inputs)
+    return chatbot_tokenizer.decode(reply_ids[0], skip_special_tokens=True)
 
-# Streamlit app interface
-st.title("Multi-functional Chatbot")
+# Function to classify intent
+def classify_intent(user_input):
+    result = intent_classifier(user_input, intents)
+    return result['labels'][0]
 
-# Create a sidebar for navigation
-option = st.sidebar.selectbox(
-    "Select the chatbot functionality",
-    ["Student Q&A", "Weather Prediction", "Chit-chat"]
-)
+# Streamlit interface
+st.title("Multi-functional Chatbot with Intent Recognition")
 
-# Handle the selected option
-if option == "Student Q&A":
-    st.write("Ask a question related to your studies, and I will provide an answer based on Google!")
-    user_question = st.text_input("Enter your question:")
-    if user_question:
-        with st.spinner("Finding the best answer..."):
-            answer = google_search(user_question)
-        st.session_state.chat_history.append({"user": user_question, "bot": answer})
-        st.write("**Answer:**", answer)
+user_input = st.text_input("Enter your query:")
 
-elif option == "Weather Prediction":
-    st.write("Get the current weather for any city!")
-    user_city = st.text_input("Enter city name:", "")
-    if st.button("Get Weather") and user_city:
+if user_input:
+    with st.spinner("Understanding your query..."):
+        detected_intent = classify_intent(user_input)
+    
+    if detected_intent == "weather_query":
+        st.write("Intent: Weather Query")
+        city = user_input.replace("weather in", "").strip()
         with st.spinner("Fetching weather data..."):
-            get_weather(user_city)
-        
-elif option == "Chit-chat":
-    st.write("Have a casual conversation with the chatbot!")
-    user_input = st.text_input("Enter your message:", "")
-    if user_input:
+            weather_info = get_weather(city)
+        st.session_state.chat_history.append({"user": user_input, "bot": weather_info})
+        st.write("**Weather Info:**", weather_info)
+    
+    elif detected_intent == "study_question":
+        st.write("Intent: Study Question")
+        with st.spinner("Finding the best answer..."):
+            answer = google_search(user_input)
+        st.session_state.chat_history.append({"user": user_input, "bot": answer})
+        st.write("**Answer:**", answer)
+    
+    elif detected_intent == "chit_chat":
+        st.write("Intent: Chit-chat")
         with st.spinner("Generating response..."):
-            generate_chat_response(user_input)
+            bot_reply = generate_chat_response(user_input)
+        st.session_state.chat_history.append({"user": user_input, "bot": bot_reply})
+        st.write("**Bot:**", bot_reply)
 
-# Display styled chat history
+# Display chat history
 st.write("### Chat History")
 for message in st.session_state.chat_history:
-    with st.container():
-        st.markdown(f"""
-        <div style='background-color: #f0f0f5; border-radius: 10px; padding: 10px; margin-bottom: 10px;'>
-            <b style='color: #0084ff;'>You:</b> {message['user']}
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div style='background-color: #dff9fb; border-radius: 10px; padding: 10px; margin-bottom: 10px;'>
-            <b style='color: #ff6347;'>Bot:</b> {message['bot']}
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(f"**You:** {message['user']}")
+    st.markdown(f"**Bot:** {message['bot']}")
