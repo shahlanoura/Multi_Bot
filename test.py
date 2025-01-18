@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 from datetime import datetime
 import warnings
 import google.generativeai as genai
+import streamlit as st
+import requests
+import json
+
 
 # Correct the category type to a class instead of a string
 warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.tokenization_utils_base")
@@ -27,41 +31,49 @@ model, tokenizer = load_model()
 weather_api_key = os.getenv("WEATHER_API_KEY", "f07bdb36a61cde1e50acde6a8ab51d77")
 #google_api_key = os.getenv("GOOGLE_API_KEY", "AIzaSyBcvvpvj1EPtxwhYTaZCctLC76O5_nlqBA")
 #google_cse_id = os.getenv("GOOGLE_CSE_ID", "62678cb02935948d8")
-GOOGLE_API_KEY = "AIzaSyAPr3DkkQRsjdiCrNhEmptYQ8Fncf_Cs2s"
-genai.configure(api_key=GOOGLE_API_KEY)
+GEMINI_API_KEY = "AIzaSyDL0ZUF5ie8s_873-tNRrNdbTz0G_RXlEs"
+genai.configure(api_key=GEMINI_API_KEY)
 
 # Initialize chat history
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# Function to fetch Google search results
+
+
+
+# Function to perform Google search with Gemini API
 def google_search(query):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": query}
+                ]
+            }
+        ]
+    }
+    
     try:
-        # Fetch the list of models and select the one that supports text generation
-        model_name = None
-        for model in genai.list_models():
-            if 'generateContent' in model.supported_generation_methods:
-                model_name = model.name
-                break
+        response = requests.post(url, json=data, headers=headers)
+        response.raise_for_status()  # Raise an exception for bad HTTP responses
         
-        if model_name is None:
-            return "No suitable Generative AI model found for content generation."
-
-        # Initialize the chat with the selected model
-        model = genai.GenerativeModel(model_name)
-        chat = model.start_chat(history=[])
-
-        # Send the query to Generative AI and get the response
-        response = chat.send_message(query, stream=True)
-
-        # Collect the response text
-        response_text = "".join(chunk.text for chunk in response if chunk.text)
-
-        # Return the full response as a two-paragraph result (assuming the AI generates enough content)
-        return response_text
-
-    except Exception as e:
+        if response.status_code == 200:
+            response_data = response.json()
+            print("Full Response:", response_data)  # Optionally print the full response for debugging
+            # Extract the generated content from the response
+            return response_data['candidates'][0]['content']['parts'][0]['text']
+        else:
+            return f"Error: {response.status_code}, {response.text}"
+    except requests.exceptions.RequestException as e:
         return f"An error occurred: {str(e)}"
+
+    
 
 # Function to get weather information
 def get_weather(city):
