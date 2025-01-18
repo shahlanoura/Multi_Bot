@@ -66,13 +66,19 @@ def google_search(query):
         if response.status_code == 200:
             response_data = response.json()
             print("Full Response:", response_data)  # Optionally print the full response for debugging
-            # Extract the generated content from the response
-            return response_data['candidates'][0]['content']['parts'][0]['text']
+            
+            # Extract the first two paragraphs (or text segments) from the response
+            content = response_data['candidates'][0]['content']['parts']
+            
+            # Ensure there are at least two paragraphs
+            paragraphs = [part['text'] for part in content[:2]]  # Limit to first two paragraphs
+            return "\n\n".join(paragraphs)  # Join the two paragraphs with two newlines for separation
+        
         else:
             return f"Error: {response.status_code}, {response.text}"
+    
     except requests.exceptions.RequestException as e:
         return f"An error occurred: {str(e)}"
-
     
 
 # Function to get weather information
